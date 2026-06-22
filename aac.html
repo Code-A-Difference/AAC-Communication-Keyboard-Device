@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Professional School-Ready AAC Board</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f0f2f5; margin: 20px; user-select: none; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .bar-label { font-size: 16px; font-weight: bold; color: #555; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .sentence-bar { width: 100%; font-size: 34px; padding: 20px; border: 3px solid #b0bec5; border-radius: 14px; box-sizing: border-box; background: white; margin-bottom: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); color: #222; font-weight: bold; }
+        .action-container { display: flex; gap: 12px; margin-bottom: 25px; }
+        .action-btn { font-size: 22px; font-weight: bold; padding: 18px; border: none; border-radius: 12px; cursor: pointer; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.1s ease; }
+        .action-btn:active { transform: translateY(2px); }
+        .speak-btn { flex: 3; background-color: #2e7d32; }
+        .back-btn { flex: 1; background-color: #ef6c00; }
+        .clear-btn { flex: 1; background-color: #c62828; }
+        .add-friend-btn { flex: 1.5; background-color: #0288d1; }
+        .fullscreen-btn { flex: 1; background-color: #455a64; }
+        .aac-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+        .aac-card { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px 10px; border-radius: 18px; border: 3px solid rgba(0,0,0,0.18); cursor: pointer; box-shadow: 0 5px 8px rgba(0,0,0,0.06); transition: transform 0.05s; min-height: 120px; }
+        .aac-card:active { transform: scale(0.93); }
+        .symbol { font-size: 52px; margin-bottom: 8px; }
+        .label { font-size: 18px; font-weight: bold; color: #111; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="bar-label">My Sentence Track:</div>
+        <input type="text" id="sentenceBar" class="sentence-bar" readonly placeholder="Tap words below to build your sentence...">
+        <div class="action-container">
+            <button class="action-btn speak-btn" onclick="speakSentence()">🗣 Speak Sentence</button>
+            <button class="action-btn back-btn" onclick="backspaceWord()">⌫ Backspace</button>
+            <button class="action-btn clear-btn" onclick="clearBar()">🗑 Clear All</button>
+            <button class="action-btn add-friend-btn" onclick="addNewFriend()">➕ Add Friend</button>
+            <button class="action-btn fullscreen-btn" onclick="toggleFullScreen()">🖥 Full Screen</button>
+        </div>
+        <div class="aac-grid" id="aacGrid">
+            <!-- ROW 1: People -->
+            <div class="aac-card" style="background-color: #FFF59D;" onclick="addWord('I')"><span class="symbol">👤</span><span class="label">I</span></div>
+            <div class="aac-card" style="background-color: #FFF59D;" onclick="addWord('You')"><span class="symbol">👥</span><span class="label">You</span></div>
+            <div class="aac-card" style="background-color: #FFF59D;" onclick="addWord('Teacher')"><span class="symbol">👩‍🏫</span><span class="label">Teacher</span></div>
+            <div class="aac-card" style="background-color: #FFF59D;" onclick="addWord('Friend')"><span class="symbol">👦</span><span class="label">Friend</span></div>
+            <div class="aac-card" style="background-color: #B3E5FC;" onclick="addWord('Yes')"><span class="symbol">✅</span><span class="label">Yes</span></div>
+            <div class="aac-card" style="background-color: #FFCDD2;" onclick="addWord('No')"><span class="symbol">❌</span><span class="label">No</span></div>
+            <!-- ROW 2: Verbs -->
+            <div class="aac-card" style="background-color: #C8E6C9;" onclick="addWord('Want')"><span class="symbol">🤔</span><span class="label">Want</span></div>
+            <div class="aac-card" style="background-color: #C8E6C9;" onclick="addWord('Help')"><span class="symbol">🙋‍♂️</span><span class="label">Help</span></div>
+            <div class="aac-card" style="background-color: #C8E6C9;" onclick="addWord('Go')"><span class="symbol">🚗</span><span class="label">Go</span></div>
+            <div class="aac-card" style="background-color: #C8E6C9;" onclick="addWord('Play')"><span class="symbol">🧩</span><span class="label">Play</span></div>
+            <div class="aac-card" style="background-color: #C8E6C9;" onclick="addWord('Eat')"><span class="symbol">🍕</span><span class="label">Eat</span></div>
+            <div class="aac-card" style="background-color: #C8E6C9;" onclick="addWord('Drink')"><span class="symbol">🥤</span><span class="label">Drink</span></div>
+            <!-- ROW 3: Feelings -->
+            <div class="aac-card" style="background-color: #B3E5FC;" onclick="addWord('More')"><span class="symbol">➕</span><span class="label">More</span></div>
+            <div class="aac-card" style="background-color: #B3E5FC;" onclick="addWord('Stop')"><span class="symbol">🛑</span><span class="label">Stop</span></div>
+            <div class="aac-card" style="background-color: #E1BEE7;" onclick="addWord('Happy')"><span class="symbol">😀</span><span class="label">Happy</span></div>
+            <div class="aac-card" style="background-color: #E1BEE7;" onclick="addWord('Sad')"><span class="symbol">😢</span><span class="label">Sad</span></div>
+            <div class="aac-card" style="background-color: #E1BEE7;" onclick="addWord('Hurt')"><span class="symbol">🩹</span><span class="label">Hurt</span></div>
+            <div class="aac-card" style="background-color: #E1BEE7;" onclick="addWord('Tired')"><span class="symbol">🥱</span><span class="label">Tired</span></div>
+            <!-- ROW 4: Needs -->
+            <div class="aac-card" style="background-color: #FFCC80;" onclick="addWord('Bathroom')"><span class="symbol">🚽</span><span class="label">Bathroom</span></div>
+            <div class="aac-card" style="background-color: #FFCC80;" onclick="addWord('School')"><span class="symbol">🏫</span><span class="label">School</span></div>
+            <div class="aac-card" style="background-color: #FFCC80;" onclick="addWord('Home')"><span class="symbol">🏠</span><span class="label">Home</span></div>
+            <div class="aac-card" style="background-color: #FFCC80;" onclick="addWord('Toy')"><span class="symbol">🧸</span><span class="label">Toy</span></div>
+            <div class="aac-card" style="background-color: #F8BBD0;" onclick="addWord('Please')"><span class="symbol">🙏</span><span class="label">Please</span></div>
+            <div class="aac-card" style="background-color: #F8BBD0;" onclick="addWord('Thank You')"><span class="symbol">💖</span><span class="label">Thank You</span></div>
+        </div>
+    </div>
+    <script>
+        let bar = document.getElementById('sentenceBar');
+        let grid = document.getElementById('aacGrid');
+        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playClickSound() {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        }
+        function addWord(word) { playClickSound(); bar.value += word + " "; }
+        function backspaceWord() {
+            playClickSound();
+            let words = bar.value.trim().split(" "); words.pop();
+            bar.value = words.length > 0 ? words.join(" ") + " " : "";
+        }
+        function clearBar() { playClickSound(); bar.value = ""; }
+        function speakSentence() {
+            if (bar.value.trim() !== "") {
+                let speech = new SpeechSynthesisUtterance(bar.value);
+                speech.pitch = 1.25; speech.rate = 0.85;
+                window.speechSynthesis.speak(speech);
+            }
+        }
+        function toggleFullScreen() {
+            playClickSound();
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); }
+            else if (document.exitFullscreen) { document.exitFullscreen(); }
+        }
+        function addNewFriend() {
+            playClickSound();
+            let friendName = prompt("Enter your friend's name:");
+            if (friendName && friendName.trim() !== "") {
+                friendName = friendName.trim();
+                let newCard = document.createElement('div');
+                newCard.className = 'aac-card';
+                newCard.style.backgroundColor = '#FFF59D';
+                newCard.onclick = function() { addWord(friendName); };
+                newCard.innerHTML = '<span class="symbol">👶</span><span class="label">' + friendName + '</span>';
+                grid.appendChild(newCard);
+            }
+        }
+    </script>
+</body>
+</html>
