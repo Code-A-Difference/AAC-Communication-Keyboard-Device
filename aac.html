@@ -201,6 +201,20 @@
       .top-actions .btn { padding: 7px 8px; font-size: .85rem; }
       .aac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+    /* Calm, brief feedback helps show which tile was selected without adding
+       continuous movement to a communication board. */
+    @keyframes tile-arrive { from { opacity: .72; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes dialog-arrive { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .aac-card { animation: tile-arrive .14s ease-out both; }
+    .aac-card:active { transform: scale(.98); }
+    dialog[open] { animation: dialog-arrive .16s ease-out both; }
+    #keyboardCaseBtn { white-space: nowrap; }
+    #keyboardCaseBtn[hidden] { display: none; }
+    #wordCategory:disabled { color: #344b5d; background: #f2f5f7; opacity: 1; }
+    @media (prefers-reduced-motion: reduce) {
+      .aac-card, dialog[open] { animation: none !important; }
+      .aac-card:active { transform: none; }
+    }
   </style>
 </head>
 <body>
@@ -214,7 +228,6 @@
         <button class="btn btn-friend" id="addFriendBtn" type="button">➕ Add friend</button>
         <button class="btn" id="addWordBtn" type="button">＋ Add word</button>
         <button class="btn" id="addCategoryBtn" type="button">＋ Category</button>
-        <button class="btn" id="fullscreenBtn" type="button">⛶ Full screen</button>
         <button class="btn" id="settingsBtn" type="button">⚙️ Settings</button>
       </div>
     </header>
@@ -250,6 +263,7 @@
         </section>
         <div class="board-head">
           <div class="board-title"><div class="board-title-icon" id="boardIcon" aria-hidden="true">⭐</div><div><h2 id="boardTitle">Core words</h2><p id="boardDescription">Words for talking about all kinds of things.</p></div></div>
+          <button class="btn" id="keyboardCaseBtn" type="button" hidden aria-pressed="true" aria-label="Uppercase letters">UPPERCASE</button>
           <label class="search"><span aria-hidden="true">🔎</span><input id="searchInput" type="search" placeholder="Find a word in any category" aria-label="Find a word in any category"></label>
         </div>
         <div class="aac-grid" id="aacGrid" aria-label="Communication words"></div>
@@ -263,7 +277,7 @@
       <div class="dialog-head"><div><h2 id="wordDialogTitle">Add a word</h2><p id="wordDialogDescription">Make this board more personal to you.</p></div><button class="icon-close" type="button" data-close="wordDialog" aria-label="Close">×</button></div>
       <div class="field"><label for="wordText">Word or short phrase</label><input id="wordText" name="wordText" maxlength="60" required autocomplete="off" placeholder="For example, Grandma or swimming"><span class="field-help">Use a name, a favorite thing, or a phrase you say often.</span></div>
       <div class="field-row">
-        <div class="field"><label for="wordCategory">Category</label><select id="wordCategory" name="wordCategory"></select></div>
+        <div class="field"><label for="wordCategory">Category</label><select id="wordCategory" name="wordCategory"></select><span class="field-help" id="wordCategoryHelp"></span></div>
         <div class="field symbol-field"><label for="wordSymbol">Symbol</label><input id="wordSymbol" name="wordSymbol" maxlength="8" aria-label="Emoji or symbol" value="⭐"></div>
       </div>
       <div class="dialog-actions"><button class="btn" type="button" data-close="wordDialog">Cancel</button><button class="btn btn-primary" id="saveWordBtn" type="submit">Save word</button></div>
@@ -311,7 +325,7 @@
       { id: 'things', name: 'Things & technology', icon: '🧸', description: 'Everyday objects and devices.' },
       { id: 'colors', name: 'Colors & shapes', icon: '🌈', description: 'Colors, shapes, and ways to make a choice.' },
       { id: 'keyboard', name: 'Keyboard', icon: '⌨️', description: 'Spell a word or type something new.' },
-      { id: 'mywords', name: 'My words', icon: '✨', description: 'All the words and names you have added.' }
+      { id: 'mywords', name: 'My added words', icon: '✨', description: 'All the words you have added.' }
     ];
 
     const vocabulary = {
@@ -378,7 +392,8 @@
       largeText: false,
       sound: false,
       rate: 0.9,
-      voiceURI: ''
+      voiceURI: '',
+      keyboardUppercase: true
     };
     const storageKey = 'aacCommunicationBoard.v2';
     const grid = document.getElementById('aacGrid');
@@ -392,7 +407,7 @@
     function readSavedBoard() {
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        if (Array.isArray(saved.words)) state.customWords = saved.words.filter(w => w && typeof w.text === 'string' && typeof w.category === 'string').slice(0, 1000);
+        if (Array.isArray(saved.words)) state.customWords = saved.words.filter(w => w && typeof w.text === 'string' && typeof w.category === 'string').slice(0, 1000).map(w => ({ ...w, category: w.isFriend ? 'people' : w.category }));
         if (Array.isArray(saved.categories)) state.customCategories = saved.categories.filter(c => c && typeof c.id === 'string' && typeof c.name === 'string' && !defaultCategories.some(d => d.id === c.id)).slice(0, 100);
         if (saved.preferences) {
           state.highContrast = !!saved.preferences.highContrast;
@@ -400,14 +415,15 @@
           state.sound = !!saved.preferences.sound;
           state.rate = Math.min(1.3, Math.max(0.6, Number(saved.preferences.rate) || 0.9));
           state.voiceURI = typeof saved.preferences.voiceURI === 'string' ? saved.preferences.voiceURI : '';
+          if (typeof saved.preferences.keyboardUppercase === 'boolean') state.keyboardUppercase = saved.preferences.keyboardUppercase;
         }
       } catch (error) { console.warn('Could not read saved board settings.', error); }
-      state.categories = [...defaultCategories, ...state.customCategories, { id: 'mywords', name: 'My words', icon: '✨', description: 'All the words and names you have added.' }].filter((c, index, all) => all.findIndex(x => x.id === c.id) === index);
+      state.categories = [...defaultCategories, ...state.customCategories, { id: 'mywords', name: 'My added words', icon: '✨', description: 'All the words you have added.' }].filter((c, index, all) => all.findIndex(x => x.id === c.id) === index);
     }
 
     function persist() {
       try {
-        localStorage.setItem(storageKey, JSON.stringify({ version: 2, words: state.customWords, categories: state.customCategories, preferences: { highContrast: state.highContrast, largeText: state.largeText, sound: state.sound, rate: state.rate, voiceURI: state.voiceURI } }));
+        localStorage.setItem(storageKey, JSON.stringify({ version: 2, words: state.customWords, categories: state.customCategories, preferences: { highContrast: state.highContrast, largeText: state.largeText, sound: state.sound, rate: state.rate, voiceURI: state.voiceURI, keyboardUppercase: state.keyboardUppercase } }));
         document.getElementById('saveNote').textContent = 'Your custom words and categories are saved on this device.';
       } catch (error) {
         document.getElementById('saveNote').textContent = 'This browser could not save changes. Export a backup from Settings.';
@@ -440,7 +456,7 @@
 
     function categoryById(id) { return state.categories.find(c => c.id === id) || defaultCategories[0]; }
     function getWordsForCategory(id) {
-      if (id === 'mywords') return state.customWords.map(w => ({ ...w, custom: true }));
+      if (id === 'mywords') return state.customWords.filter(w => !w.isFriend).map(w => ({ ...w, custom: true }));
       const standard = (vocabulary[id] || []).map(([text, symbol]) => ({ text, symbol, category: id }));
       return standard.concat(state.customWords.filter(w => w.category === id).map(w => ({ ...w, custom: true })));
     }
@@ -489,7 +505,8 @@
     const categoryColors = { core: '#fff3bd', people: '#ffedb5', actions: '#dcf3dc', food: '#ffecd9', drinks: '#dcf2ff', numbers: '#e6e7ff', feelings: '#f6e3f2', describing: '#e2efff', places: '#ffedd8', body: '#ffe0df', school: '#e0efff', play: '#e7e1ff', social: '#f3e4ff', sentences: '#d8eee9', questions: '#e3f4f3', time: '#fff0d8', things: '#e4eff4', colors: '#f6e8fd', custom: '#edf2f7' };
 
     function keyboardItems() {
-      return [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(letter => ({ text: letter.toLowerCase(), symbol: letter, kind: 'character' })).concat(
+      const letters = state.keyboardUppercase ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' : 'abcdefghijklmnopqrstuvwxyz';
+      return [...letters].map(letter => ({ text: letter, symbol: letter, kind: 'character' })).concat(
         [{ text: '0', symbol: '0️⃣', kind: 'character' }, { text: '1', symbol: '1️⃣', kind: 'character' }, { text: '2', symbol: '2️⃣', kind: 'character' }, { text: '3', symbol: '3️⃣', kind: 'character' }, { text: '4', symbol: '4️⃣', kind: 'character' }, { text: '5', symbol: '5️⃣', kind: 'character' }, { text: '6', symbol: '6️⃣', kind: 'character' }, { text: '7', symbol: '7️⃣', kind: 'character' }, { text: '8', symbol: '8️⃣', kind: 'character' }, { text: '9', symbol: '9️⃣', kind: 'character' }, { text: '.', symbol: '·', kind: 'character' }, { text: ',', symbol: ',', kind: 'character' }, { text: '?', symbol: '?', kind: 'character' }, { text: '!', symbol: '!', kind: 'character' }, { text: ' ', symbol: '␣', label: 'Space', kind: 'character' }, { text: '', symbol: '⌫', label: 'Delete', kind: 'delete-character' }]
       );
     }
@@ -499,14 +516,19 @@
       document.getElementById('boardIcon').textContent = current.icon;
       document.getElementById('boardTitle').textContent = current.name;
       document.getElementById('boardDescription').textContent = current.description || 'Your own words for this topic.';
+      const caseButton = document.getElementById('keyboardCaseBtn');
+      caseButton.hidden = state.currentCategory !== 'keyboard';
+      caseButton.textContent = state.keyboardUppercase ? 'UPPERCASE' : 'lowercase';
+      caseButton.setAttribute('aria-label', `${state.keyboardUppercase ? 'Uppercase' : 'Lowercase'} letters`);
+      caseButton.setAttribute('aria-pressed', String(state.keyboardUppercase));
       grid.replaceChildren();
       const query = searchInput.value.trim().toLocaleLowerCase();
       let items = query ? allWords().filter(w => w.text.toLocaleLowerCase().includes(query)) : state.currentCategory === 'keyboard' ? keyboardItems() : getWordsForCategory(state.currentCategory);
       if (query) document.getElementById('boardDescription').textContent = `Matching words from your board${items.length ? ` · ${items.length} found` : ''}.`;
       if (items.length === 0) {
         const empty = document.createElement('div'); empty.className = 'empty-state';
-        const title = document.createElement('strong'); title.textContent = query ? 'No words found' : state.currentCategory === 'mywords' ? 'Your word list is ready' : 'No words here yet';
-        const description = document.createElement('span'); description.textContent = query ? 'Try another search, or add a word with the button above.' : state.currentCategory === 'mywords' ? 'Add a word or friend and it will show up here.' : 'Add a word to this category to make it your own.';
+        const title = document.createElement('strong'); title.textContent = query ? 'No words found' : state.currentCategory === 'mywords' ? 'Your added words will appear here' : 'No words here yet';
+        const description = document.createElement('span'); description.textContent = query ? 'Try another search, or add a word with the button above.' : state.currentCategory === 'mywords' ? 'Add a word and it will show up here.' : 'Add a word to this category to make it your own.';
         empty.append(title, description); grid.append(empty);
         return;
       }
@@ -584,11 +606,12 @@
       document.getElementById('wordDialogTitle').textContent = friend ? 'Add a friend' : 'Add a word';
       document.getElementById('wordDialogDescription').textContent = friend ? 'Add someone important to your People & friends page.' : 'Make this board more personal to you.';
       document.getElementById('wordText').placeholder = friend ? 'Enter your friend’s name' : 'For example, Grandma or swimming';
-      document.getElementById('wordCategory').value = friend ? 'people' : (state.currentCategory === 'keyboard' || state.currentCategory === 'mywords' ? 'core' : state.currentCategory);
       document.getElementById('wordSymbol').value = friend ? '🧑‍🤝‍🧑' : '⭐';
       document.getElementById('saveWordBtn').textContent = friend ? 'Save friend' : 'Save word';
       const select = document.getElementById('wordCategory'); select.replaceChildren();
-      state.categories.filter(c => !['keyboard', 'mywords'].includes(c.id)).forEach(c => { const option = document.createElement('option'); option.value = c.id; option.textContent = c.name; select.append(option); });
+      state.categories.filter(c => friend ? c.id === 'people' : !['keyboard', 'mywords'].includes(c.id)).forEach(c => { const option = document.createElement('option'); option.value = c.id; option.textContent = c.name; select.append(option); });
+      select.disabled = friend;
+      document.getElementById('wordCategoryHelp').textContent = friend ? 'Friends are always saved in People & friends.' : '';
       select.value = friend ? 'people' : (state.currentCategory === 'keyboard' || state.currentCategory === 'mywords' ? 'core' : state.currentCategory);
       document.getElementById('wordDialog').showModal();
       setTimeout(() => document.getElementById('wordText').focus(), 30);
@@ -597,7 +620,7 @@
     document.getElementById('wordForm').addEventListener('submit', event => {
       event.preventDefault();
       const text = document.getElementById('wordText').value.trim();
-      const category = document.getElementById('wordCategory').value;
+      const category = editingFriend ? 'people' : document.getElementById('wordCategory').value;
       const symbol = document.getElementById('wordSymbol').value.trim() || (editingFriend ? '🧑‍🤝‍🧑' : '⭐');
       if (!text) return;
       state.customWords.push({ text, category, symbol, isFriend: editingFriend });
@@ -661,7 +684,7 @@
         if (!data || !Array.isArray(data.words) || !Array.isArray(data.categories)) throw new Error('This file is not a board backup.');
         const safeCategories = data.categories.filter(c => c && typeof c.name === 'string' && typeof c.id === 'string' && !defaultCategories.some(d => d.id === c.id)).slice(0, 100);
         const categoryIds = new Set([...defaultCategories, ...safeCategories].map(c => c.id));
-        const safeWords = data.words.filter(w => w && typeof w.text === 'string' && typeof w.category === 'string' && categoryIds.has(w.category)).slice(0, 1000).map(w => ({ text: w.text.slice(0, 60), category: w.category, symbol: typeof w.symbol === 'string' ? w.symbol.slice(0, 8) : '⭐', isFriend: !!w.isFriend }));
+        const safeWords = data.words.filter(w => w && typeof w.text === 'string' && typeof w.category === 'string' && categoryIds.has(w.isFriend ? 'people' : w.category)).slice(0, 1000).map(w => ({ text: w.text.slice(0, 60), category: w.isFriend ? 'people' : w.category, symbol: typeof w.symbol === 'string' ? w.symbol.slice(0, 8) : '⭐', isFriend: !!w.isFriend }));
         state.customCategories = safeCategories;
         state.categories = [...defaultCategories, ...state.customCategories];
         state.customWords = safeWords;
@@ -675,11 +698,10 @@
     document.getElementById('addFriendBtn').addEventListener('click', () => openWordDialog(true));
     document.getElementById('addWordBtn').addEventListener('click', () => openWordDialog(false));
     document.getElementById('addCategoryBtn').addEventListener('click', () => { document.getElementById('categoryDialog').showModal(); setTimeout(() => document.getElementById('categoryText').focus(), 30); });
-    document.getElementById('fullscreenBtn').addEventListener('click', async () => {
-      try {
-        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-        else await document.exitFullscreen();
-      } catch (_) { showToast('Full screen is not available in this browser.'); }
+    document.getElementById('keyboardCaseBtn').addEventListener('click', () => {
+      state.keyboardUppercase = !state.keyboardUppercase;
+      persist();
+      renderBoard();
     });
     document.getElementById('settingsBtn').addEventListener('click', () => document.getElementById('settingsDialog').showModal());
     document.getElementById('speakBtn').addEventListener('click', speakSentence);
